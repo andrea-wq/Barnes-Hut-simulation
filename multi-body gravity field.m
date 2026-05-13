@@ -1,6 +1,9 @@
 clear
 clc
 close all
+
+%#codegen
+
 addpath("function\")
 M_sun = 1.989e30;
 G = 6.67430e-11;
@@ -21,7 +24,7 @@ G = 6.67430e-11;
 
 %%
 
-%[points,points_mass,v_0,L,sizes,N,dt,t_end] = galaxy_cluster(200);
+[points,points_mass,points_j2,v_0,L,sizes,N,dt,t_end] = galaxy_cluster(4);
 % points = [points ; -4e12,-4e12,0];
 % points_mass = [points_mass ; 10*M_sun];
 % v_0 = [v_0 ; 0,0,0];
@@ -439,7 +442,7 @@ function [points,points_mass,point_j2,v_0,L,sizes,N,dt,t_end] = solar_sys()
 end
 
 
-function [points,points_mass,v_0,L,sizes,N,dt,t_end] = galaxy_cluster(N)
+function [points,points_mass,points_j2,v_0,L,sizes,N,dt,t_end] = galaxy_cluster(N)
     L = 3e16;
     M_sun = 1.989e30;
     
@@ -473,6 +476,8 @@ function [points,points_mass,v_0,L,sizes,N,dt,t_end] = galaxy_cluster(N)
     t_cross = L / v_typ;         % ~3e12 s ~ 100k anni
     dt    = t_cross / 100;   % ~3e10 s, ~1000 anni  — risolve bene le orbite
     t_end = 50 * t_cross;    % ~3e13 s, ~1M anni    — vedi evoluzione globale
+
+    points_j2 = zeros(size(points,1),size(points,2));
 
 end
 
