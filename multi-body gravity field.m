@@ -2,15 +2,15 @@ clear
 clc
 close all
 
-%#codegen
-
 addpath("function\")
 M_sun = 1.989e30;
 G = 6.67430e-11;
 [points,points_mass,points_j2,v_0,L,sizes,N,dt,t_end] = solar_sys();
 % [points,points_mass,v_0,points_j2,sizes] = add_moon(points, points_mass , v_0 , points_j2,sizes);
 % N=55;
-% 
+% idx_moon = 11:N;
+% idx_planet = 1:10;
+
 % keepIdx = [3, 10, 11];
 % % Ensure indices are within current range
 % keepIdx = keepIdx(keepIdx >= 1 & keepIdx <= size(points,1));
@@ -23,8 +23,20 @@ G = 6.67430e-11;
 % N = numel(keepIdx);
 
 %%
-
+clear
+clc
+close all
+addpath("function\")
+M_sun = 1.989e30;
 [points,points_mass,points_j2,v_0,L,sizes,N,dt,t_end] = galaxy_cluster(4);
+v_0 = zeros(4,3);
+% points = [points ; 0,0,0];
+% points_mass = [points_mass ; 300*M_sun];
+% points_j2 = [points_j2;0];
+% v_0 = [v_0;0,0,0];
+% sizes = [sizes , 150];
+% N = N+1;
+
 % points = [points ; -4e12,-4e12,0];
 % points_mass = [points_mass ; 10*M_sun];
 % v_0 = [v_0 ; 0,0,0];
@@ -32,7 +44,7 @@ G = 6.67430e-11;
 % N=10;
 
 figure;
-h = scatter3(points(:,1), points(:,2), points(:,3),0.5.*sizes, 'filled');
+h = scatter3(points(:,1), points(:,2), points(:,3),3.*sizes, 'filled');
 grid on;
 axis equal;
 hold off
@@ -44,24 +56,24 @@ zlim([-L L]);
 ax = gca;
 ax.Clipping = 'off';
 
-trail_length = 75;
-history = zeros(trail_length, 3, N);
-for i = 1:N
-    history(:,:,i) = repmat(points(i,:), trail_length, 1);
-end
-
-hold on;
-h_trail = cell(N,1);  
-for i = 1:N
-    h_trail{i} = plot3(points(i,1), points(i,2), points(i,3), '-', 'LineWidth', 0.5);
-end
+% trail_length = 75;
+% history = zeros(trail_length, 3, N);
+% for i = 1:N
+%     history(:,:,i) = repmat(points(i,:), trail_length, 1);
+% end
+% 
+% hold on;
+% h_trail = cell(N,1);  
+% for i = 1:N
+%     h_trail{i} = plot3(points(i,1), points(i,2), points(i,3), '-', 'LineWidth', 0.5);
+% end
 
 
 node = octree_sys([0,0,0],L,points,points_mass,points_j2);
 
 % Draw octree box wireframes in white with semi-transparent fills
 figure
-scatter3(points(:,1), points(:,2), points(:,3), 0.5.*sizes, 'filled');
+scatter3(points(:,1), points(:,2), points(:,3), 0.5*sizes, 'filled');
 grid on;
 axis equal;
 hold off
@@ -80,7 +92,32 @@ drawNode(node);
 hold off;
 
 %%
+n_planets = 10;
+n_sub = 100;        % abbassa se troppo lento, non scendere sotto 20
+dt_sub = dt / n_sub;
+G = 6.67430e-11;
 
+dt = dt/4;
+
+% T_orb = 225 * 1e6 * 3.156e7;   % ~7.1e15 s
+% dt    = T_orb / 200;            % ~3.5e13 s ≈ 1.1 Myr — buona risoluzione
+% t_end = 20 * T_orb;            % ~4.5 Gyr, una rotazione galattica completa
+
+% Verifica energia iniziale luna-terra
+% i_luna = n_planets + 1;  % indice Luna nel vettore
+% i_terra = 3;             % Terra
+% 
+% r = points(i_terra,:) - points(i_luna,:);
+% v_rel = v_0(i_terra,:) - v_0(i_luna,:);
+% 
+% E_kin = 0.5 * points_mass(i_luna) * dot(v_rel, v_rel);
+% E_pot = -G * points_mass(i_terra) * points_mass(i_luna) / norm(r);
+% E_tot = E_kin + E_pot;
+% 
+% fprintf('E_cin  = %.4e J\n', E_kin);
+% fprintf('E_pot  = %.4e J\n', E_pot);
+% fprintf('E_tot  = %.4e J\n', E_tot);
+% fprintf('Bound? %s\n', string(E_tot < 0));
 
 t=0;
 while t < t_end
@@ -96,7 +133,7 @@ while t < t_end
     a = F ./ points_mass;
     v_0 = v_0 + a * dt/2;          % mezzo step velocità
     points = points + v_0 * dt;    % step posizione
-    
+
     % ricalcola F con nuove posizioni
     node = octree_sys([0,0,0],L,points,points_mass,points_j2);
     node = node_mass(node);
@@ -104,77 +141,25 @@ while t < t_end
     for i = 1:N
         F(i,:) = calc_forza(node, points(i,:), points_mass(i));
     end
-    
+
     a = F ./ points_mass;
-    v_0 = v_0 + a * dt/2;          % secondo mezzo step
+    v_0 = v_0 + a * dt/2;         % secondo mezzo step
 
-    h.XData = points(:,1);
-    h.YData = points(:,2);
-    h.ZData = points(:,3);
+    % points(end,:) = [0,0,0];
+    % v_0(end,:) = [0,0,0];
 
-    history = circshift(history, 1, 1);
-    history(1,:,:) = points';
-    for i = 1:N
-        h_trail{i}.XData = squeeze(history(:,1,i));
-        h_trail{i}.YData = squeeze(history(:,2,i));
-        h_trail{i}.ZData = squeeze(history(:,3,i));
+
+    % Update scatter positions without drawing force quivers
+    if exist('h','var') && isgraphics(h)
+        set(h, 'XData', points(:,1), 'YData', points(:,2), 'ZData', points(:,3));
+    else
+        h = scatter3(points(:,1), points(:,2), points(:,3), 0.5.*sizes, 'filled');
     end
-
-    % % Draw force vectors for each point using F (force per point)
-    % % Remove previous force quiver graphics if they exist
-    % if exist('h_force','var') && isgraphics(h_force)
-    %     delete(h_force);
-    % end
-    % % Scale factor for visual clarity (adjust as needed)
-    % scale = 1e-12;
-    % % Start positions are the point coordinates
-    % X = points(:,1);
-    % Y = points(:,2);
-    % Z = points(:,3);
-    % U = F(:,1) * scale;
-    % V = F(:,2) * scale;
-    % W = F(:,3) * scale;
-    % % Draw 3D quiver for forces and store handle in persistent variable
-    % h_force = quiver3(X, Y, Z, U, V, W, 0, 'Color', [0 0.6 0], 'LineWidth', 1);
 
     drawnow limitrate;
     pause(0.01);
     t = t + dt;
 end
-
-
-% TESTs
-% node = octree([L/2, L/2, L/2],L/2,points,points_mass);
-% 
-% node = node_mass(node);
-% 
-% % Draw octree box wireframes in white with semi-transparent fills
-% hold on;
-% axis equal;
-% view(3);
-% 
-% drawNode(node);
-% hold off;
-% 
-% 
-% 
-% 
-% for i = 1:length(points)
-% 
-%     F(i,:) = calc_forza(node,points(i,:),points_mass(i));
-% end
-% 
-% dt = 1000000;
-% 
-% for i = 1:length(points)
-% 
-%     v(i,:) = v_0(i,:) + F(i,:)/points_mass(i) *dt;
-% 
-%     points(i,:) = points(i,:) + v(i,:)*dt;
-% 
-%     v_0(i,:) = v(i,:);
-% end
-
 
 
 function [node, count] = octree(center, half, point, point_mass, depth)
@@ -197,7 +182,7 @@ function [node, count] = octree(center, half, point, point_mass, depth)
     node.child      = {};
 
     % guardie di stop
-    if size(point,1) <= 1 || depth > 20 || half < 1e3
+    if size(point,1) <= 1 || depth > 25 || half < 1e17
         return;
     end
 
@@ -443,42 +428,73 @@ end
 
 
 function [points,points_mass,points_j2,v_0,L,sizes,N,dt,t_end] = galaxy_cluster(N)
-    L = 3e16;
-    M_sun = 1.989e30;
+
+    L      = 3e21;
+    M_sun  = 1.989e30;
+    G      = 6.67430e-11;
+
+    % --- Geometria disco con raggio minimo e massimo ---
+    R_min  = L * 0.04;          % raggio interno (buco centrale)
+    R_max  = L * 0.45;          % raggio esterno del disco
     
-    R_disk = L * 0.3;
-    r      = R_disk * sqrt(rand(N,1));   
-    phi    = 2*pi * rand(N,1);
-    
-    x = r .* cos(phi);
-    y = r .* sin(phi);
-    z = randn(N,1) * R_disk * 0.05;     % disco sottile ~5% dello spessore radiale
-    
-    points = [x, y, z] + [L/2, L/2, L/2];  % centra nel box
-    points_mass = ((0.3 + 9.9*rand(N,1)) * M_sun);
-    
-    G     = 6.67430e-11;
-    M_tot = sum(points_mass);
-    
-    v_circ = sqrt(G * M_tot ./ r);      % velocità orbitale kepleriana
-    % direzione tangenziale nel piano xy (perpendicolare a r)
+    % distribuzione uniforme in area tra R_min e R_max
+    u = rand(N,1);
+    r = sqrt(u * (R_max^2 - R_min^2) + R_min^2);
+
+    phi = 2*pi * rand(N,1);
+    z   = randn(N,1) * (R_max - R_min) * 0.02;   % spessore 2% del disco
+
+    points = [r.*cos(phi), r.*sin(phi), z];
+
+    % --- Masse: distribuzione di Salpeter ---
+    m_min = 0.1 * M_sun;
+    m_max = 50  * M_sun;
+    u2 = rand(N,1);
+    points_mass = (m_min^(-1.35) + u2*(m_max^(-1.35) - m_min^(-1.35))).^(1/-1.35);
+
+    % --- Massa enclosed entro r (disco + alone) ---
+    [r_sorted, sort_idx] = sort(r);
+    M_enc_sorted = cumsum(points_mass(sort_idx));
+    M_enc = zeros(N,1);
+    M_enc(sort_idx) = M_enc_sorted;
+
+    M_disk    = sum(points_mass);
+    M_halo_enc = M_disk * (r / R_max);      % alone isotermo singolare
+
+    v_circ = sqrt(G * (M_enc + M_halo_enc) ./ r);
+
+    % Clamp di sicurezza
+    v_max  = 1000e3;
+    n_clip = sum(v_circ > v_max);
+    if n_clip > 0
+        warning('%d particelle clampate a 1000 km/s', n_clip);
+        v_circ = min(v_circ, v_max);
+    end
+
+    % --- Velocità tangenziali + dispersione ---
+    sigma_v = 0.05 * v_circ;
     v_0 = zeros(N,3);
-    v_0(:,1) = -v_circ .* sin(phi) * 0.3;
-    v_0(:,2) =  v_circ .* cos(phi) * 0.3;
-    v_0(:,3) = 0;                        % nessuna componente z
+    v_0(:,1) = -v_circ .* sin(phi) + sigma_v .* randn(N,1);
+    v_0(:,2) =  v_circ .* cos(phi) + sigma_v .* randn(N,1);
+    v_0(:,3) =                        sigma_v .* randn(N,1) * 0.5;
 
-    sizes = 20/0.5;
+    % --- Parametri simulazione ---
+    r_ref  = (R_min + R_max) / 2;
+    M_ref  = M_disk/2 + M_disk*0.5;
+    T_ref  = 2*pi * r_ref / sqrt(G * M_ref / r_ref);
+    dt     = T_ref / 200;
+    t_end  = 10 * T_ref;
 
-    points = points - [L/2,L/2,L/2];
+    % --- Output ---
+    L         = R_max * 2.5;
+    sizes     = 5 * ones(N,1)';
+    points_j2 = zeros(N,1);
 
-
-    v_typ = 10e3;                % velocità tipica, m/s
-    t_cross = L / v_typ;         % ~3e12 s ~ 100k anni
-    dt    = t_cross / 100;   % ~3e10 s, ~1000 anni  — risolve bene le orbite
-    t_end = 50 * t_cross;    % ~3e13 s, ~1M anni    — vedi evoluzione globale
-
-    points_j2 = zeros(size(points,1),size(points,2));
-
+    fprintf('R_min   = %.3e m = %.1f kpc\n', R_min, R_min/3.086e19);
+    fprintf('R_max   = %.3e m = %.1f kpc\n', R_max, R_max/3.086e19);
+    fprintf('dt      = %.3e s = %.1f Myr\n', dt,    dt   /(1e6*3.156e7));
+    fprintf('t_end   = %.3e s = %.1f Gyr\n', t_end, t_end/(1e9*3.156e7));
+    fprintf('v_circ  media = %.1f km/s\n',   mean(v_circ)/1e3);
 end
 
 
@@ -494,8 +510,6 @@ function [point,points_mass,v_0,points_j2,sizes] = add_moon(points,points_mass,v
     end
    pause(1)
 end
-
-
 
 
 function [pos,vel] = horizon_data(mjd2000_date , index)
@@ -596,4 +610,20 @@ end
 
 % pos and vel are 1x3 vectors containing position (km) and velocity (km/s) respectively.
 
+end
+
+
+function F_m = moon_forces(points, masses, n_planets, idx_moons, G)
+    n_m = numel(idx_moons);
+    F_m = zeros(n_m, 3);
+    eps = 1e5;  % stesso softening piccolo che hai già
+
+    for i = 1:n_m
+        mi = idx_moons(i);
+        for j = 1:n_planets
+            r = points(j,:) - points(mi,:);
+            d = sqrt(dot(r,r) + eps^2);
+            F_m(i,:) = F_m(i,:) + G * masses(mi) * masses(j) * r / d^3;
+        end
+    end
 end
